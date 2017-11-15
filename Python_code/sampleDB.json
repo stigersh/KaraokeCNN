@@ -1,0 +1,33 @@
+{
+    "base_path": "../MedleyDB_sample/Audio/",
+    "mixes": [
+        {
+            "mix_path": "MusicDelta_Beatles/MusicDelta_Beatles_MIX.wav",
+            "other_stems": [
+                "MusicDelta_Beatles/MusicDelta_Beatles_STEMS/MusicDelta_Beatles_STEM_01.wav",
+                "MusicDelta_Beatles/MusicDelta_Beatles_STEMS/MusicDelta_Beatles_STEM_02.wav",
+                "MusicDelta_Beatles/MusicDelta_Beatles_STEMS/MusicDelta_Beatles_STEM_03.wav",
+                "MusicDelta_Beatles/MusicDelta_Beatles_STEMS/MusicDelta_Beatles_STEM_04.wav",
+                "MusicDelta_Beatles/MusicDelta_Beatles_STEMS/MusicDelta_Beatles_STEM_05.wav",
+                "MusicDelta_Beatles/MusicDelta_Beatles_STEMS/MusicDelta_Beatles_STEM_06.wav"
+            ],
+            "target_stems": [
+                "MusicDelta_Beatles/MusicDelta_Beatles_STEMS/MusicDelta_Beatles_STEM_08.wav",
+                "MusicDelta_Beatles/MusicDelta_Beatles_STEMS/MusicDelta_Beatles_STEM_07.wav"
+            ]
+        },
+
+        {
+            "mix_path": "LizNelson_Rainfall/LizNelson_Rainfall_MIX.wav",
+            "other_stems": [
+                "LizNelson_Rainfall/LizNelson_Rainfall_STEMS/LizNelson_Rainfall_STEM_04.wav",
+                "LizNelson_Rainfall/LizNelson_Rainfall_STEMS/LizNelson_Rainfall_STEM_05.wav"
+            ],
+            "target_stems": [
+                "LizNelson_Rainfall/LizNelson_Rainfall_STEMS/LizNelson_Rainfall_STEM_01.wav",
+                "LizNelson_Rainfall/LizNelson_Rainfall_STEMS/LizNelson_Rainfall_STEM_02.wav",
+                "LizNelson_Rainfall/LizNelson_Rainfall_STEMS/LizNelson_Rainfall_STEM_03.wav"
+            ]
+        }
+    ]
+}

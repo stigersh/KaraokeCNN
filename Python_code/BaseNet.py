@@ -1,10 +1,17 @@
 import tensorflow as tf
 import numpy as np
+
+from Params import options as opt
+
+options = opt
+
 # hello = tf.constant('Hello, TensorFlow!')
 # sess = tf.Session()
 # print(sess.run(hello))
 n_iters = 10000
-x_size = 20500
+
+
+x_size = options.L*options.N_BINS
 lr = 0.2
 batch_size = 100
 
@@ -46,10 +53,6 @@ cross_entropy = tf.reduce_mean(probs)
 
 train_step = tf.train.GradientDescentOptimizer(lr).minimize(cross_entropy)
 
-
-#this is not multi class thus argmax is just wrong for accuracy.
-# correct_prediction = tf.equal(tf.argmax(y, 1), tf.argmax(net_y, 1)) #this is mulyiclass - wrong!
-# accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
 
 loss_vec = np.zeros([1,n_iters])
 with tf.Session() as sess:

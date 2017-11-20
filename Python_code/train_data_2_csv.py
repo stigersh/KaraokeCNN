@@ -1,5 +1,11 @@
 __author__='anna'
 
+#generate csv files of the training data
+#one file for the mix spectograms which is the net input
+#one file for the binary masks which are the net output binary labels
+
+
+
 # write and read data
 import pickle
 import json
@@ -17,23 +23,17 @@ def normalize(x):
 class struct(object):
     pass
 
+from Params import options as opt
 
-options = struct()
-options.L = 20  # number of stacked frames
-options.H = 60  # Training data resample hop
-options.N_BINS = 1025  # number of FFT bins
-options.FFT_SIZE = 2 * (options.N_BINS - 1)  # STFT FFT size
-options.HOP_SIZE = 512  # STFT hop size
-options.N_ITER = 100  # number of iterations
-
+options = opt
 
 
 # read json, read mix from sample and plot
 jsondata = json.load(open('sampleDB.json'))#('medleydb_deepkaraoke.json'))  # dictionary
 
-print(jsondata["mixes"][50]["mix_path"])
-# print(data['base_path'])
+# main function which return DataFrame of training blocks from a single song
 def get_train_data_per_mix(options,ind,jsondata):
+    print(jsondata["mixes"][ind]["mix_path"])
     mixname = jsondata['base_path'] + jsondata["mixes"][ind]["mix_path"]
     other_stems_str = [jsondata['base_path'] + f for f in jsondata["mixes"][ind]["other_stems"]]
     target_stems_str = [jsondata['base_path'] + f for f in jsondata["mixes"][ind]["target_stems"]]
@@ -79,24 +79,18 @@ def get_train_data_per_mix(options,ind,jsondata):
     overlap = options.FFT_SIZE - options.HOP_SIZE  # this is in the matlab code, in the paper the overlap is the hop size
 
 
-    f, t, Zotherxx = signal.stft(other, samplerate, 'hann', options.FFT_SIZE, overlap)
-    print('stft')
+    f, t, Sother = signal.spectrogram(other, samplerate, 'hann', options.FFT_SIZE, overlap)
+    print(Sother.shape)
 
-    # plt.pcolormesh(t, f, np.log(np.abs(Zotherxx) ** 2))
-    # plt.title('other STFT Magnitude sqr')
-    # plt.ylabel('Frequency [Hz]')
-    # plt.xlabel('Time [sec]')
-    # plt.colorbar()
+    f, t, Svocals = signal.spectrogram(vocals, samplerate, 'hann', options.FFT_SIZE, overlap)
 
-    f, t, Zvocalsxx = signal.stft(vocals, samplerate, 'hann', options.FFT_SIZE, overlap)
-    print('stft')
-    # plt.pcolormesh(t, f, np.log(np.abs(Zvocalsxx) ** 2))
+    # plt.pcolormesh(t, f, np.log(Svocals))
     # plt.title('vocals STFT Magnitude sqr')
     # plt.ylabel('Frequency [Hz]')
     # plt.xlabel('Time [sec]')
     # plt.colorbar()
 
-    f, t, Zmix_totxx = signal.stft(mix_tot, samplerate, 'hann', options.FFT_SIZE, overlap)
+    f, t, Smix_tot = signal.spectrogram(mix_tot, samplerate, 'hann', options.FFT_SIZE, overlap)
 
     def sample_to_col_blocks(sig, H, L):
         n_blocks = int(np.floor(sig.shape[1] / H))
@@ -105,9 +99,10 @@ def get_train_data_per_mix(options,ind,jsondata):
         return [sig[:, i:i + L] for i in np.arange(0, n_blocks * H, H)]
 
 
-    voc_blks = sample_to_col_blocks(Zvocalsxx, options.H, options.L)
-    other_blks = sample_to_col_blocks(Zotherxx, options.H, options.L)
-    mix_blks = sample_to_col_blocks(Zmix_totxx, options.H, options.L)
+    voc_blks = sample_to_col_blocks(Svocals, options.H, options.L)
+    print (voc_blks[0].shape)
+    other_blks = sample_to_col_blocks(Sother, options.H, options.L)
+    mix_blks = sample_to_col_blocks(Smix_tot, options.H, options.L)
 
     bin_mask_blks = [np.abs(voc_blks[i]) > np.abs(other_blks[i]) for i in
                      range(0, len(mix_blks))]  # check that this is an np.array and the output is a vector
@@ -127,7 +122,7 @@ def get_train_data_per_mix(options,ind,jsondata):
     return df_mixes, df_masks
 
 
-#save to csv
+# run over all training songs and save to csv
 
 train_mixes_filename = 'train_mixes.csv'
 train_masks_filename = 'train_masks.csv'

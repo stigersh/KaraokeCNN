@@ -1,5 +1,14 @@
 __author__='anna'
 
+# write and read data
+import pickle
+import json
+
+# Hello numpy
+import numpy as np
+import soundfile as sf
+from scipy import signal
+import pandas as pd
 
 def normalize(x):
     return (x - np.min(x)) / (np.max(x) - np.min(x))
@@ -9,27 +18,18 @@ class struct(object):
     pass
 
 
-options = struct();
-options.L = 20;  # number of stacked frames
-options.H = 60;  # Training data resample hop
-options.N_BINS = 1025;  # number of FFT bins
-options.FFT_SIZE = 2 * (options.N_BINS - 1);  # STFT FFT size
-options.HOP_SIZE = 512;  # STFT hop size
-options.N_ITER = 100;  # number of iterations
+options = struct()
+options.L = 20  # number of stacked frames
+options.H = 60  # Training data resample hop
+options.N_BINS = 1025  # number of FFT bins
+options.FFT_SIZE = 2 * (options.N_BINS - 1)  # STFT FFT size
+options.HOP_SIZE = 512  # STFT hop size
+options.N_ITER = 100  # number of iterations
 
 
-# Hello numpy
-import numpy as np
-from scipy import signal
-
-import json
-from pprint import pprint
-import time
-import matplotlib.pyplot as plt
-import soundfile as sf
 
 # read json, read mix from sample and plot
-jsondata = json.load(open('medleydb_deepkaraoke.json'))  # dictionary
+jsondata = json.load(open('sampleDB.json'))#('medleydb_deepkaraoke.json'))  # dictionary
 
 print(jsondata["mixes"][50]["mix_path"])
 # print(data['base_path'])
@@ -112,26 +112,41 @@ def get_train_data_per_mix(options,ind,jsondata):
     bin_mask_blks = [np.abs(voc_blks[i]) > np.abs(other_blks[i]) for i in
                      range(0, len(mix_blks))]  # check that this is an np.array and the output is a vector
 
-    train_data = struct()
-    train_data.mix_blks = mix_blks
-    train_data.bin_mask_blks = bin_mask_blks
-    train_data.voc_blks = voc_blks
-    train_data.other_blks = other_blks
-    return train_data
+    # reshape to row vectors - columns block into single row of serialized columns.
+    # reshape concat rows -> thus transpose is called
+    def reshape_colsblk_to_row_of_cols(blk):
+        return np.reshape(blk.transpose(), [1, blk.size])
 
-# write and read data
-import pickle
+    mix_rowvecs = np.squeeze(np.array([reshape_colsblk_to_row_of_cols(blk) for blk in mix_blks]))
+    bin_mask_rowvecs = np.squeeze(np.array([reshape_colsblk_to_row_of_cols(blk) for blk in bin_mask_blks]))
+
+    df_mixes = pd.DataFrame(mix_rowvecs)
+    df_masks = pd.DataFrame(bin_mask_rowvecs)
+    # voc_blks
+    # other_blks
+    return df_mixes, df_masks
 
 
-train_data = get_train_data_per_mix(options,50,jsondata)
+#save to csv
 
-f = open('train_data_pycharm.pckl', 'wb')
-pickle.dump(train_data, f)
-f.close()
+train_mixes_filename = 'train_mixes.csv'
+train_masks_filename = 'train_masks.csv'
 
-f = open('train_data_pycharm.pckl', 'rb')
-train_data_in = pickle.load(f)
-f.close()
+
+for i in range(0,len(jsondata["mixes"])):
+    df_mixes_i, df_masks_i = get_train_data_per_mix(options,i,jsondata)
+    with open(train_mixes_filename, 'a') as f:
+        df_mixes_i.to_csv(f, header=False, index=False)
+    with open(train_masks_filename, 'a') as f:
+        df_masks_i.to_csv(f, header=False, index=False)
+
+
+# datafilename = 'train_data_sample.pckl'
+# f = open(datafilename, 'wb')
+# pickle.dump(train_data, f)
+# f.close()
+
+
 
 
 

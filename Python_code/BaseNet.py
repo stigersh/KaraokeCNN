@@ -1,14 +1,23 @@
 import tensorflow as tf
+import numpy as np
 # hello = tf.constant('Hello, TensorFlow!')
 # sess = tf.Session()
 # print(sess.run(hello))
-
+n_iters = 10000
 x_size = 20500
 lr = 0.2
+batch_size = 100
 
-# Step 2: create placeholders for input X (number of fire) and mask P  #prob
-x = tf.placeholder(tf.float32, name='X')
-P = tf.placeholder(tf.float32, name='P')
+from DataClass import DataClass
+train_mixes_filename = 'train_mixes.csv'
+train_masks_filename = 'train_masks.csv'
+
+
+data_class = DataClass(train_mixes_filename,train_masks_filename,batch_size)
+
+# Step 2: create placeholders for input X (stft part) and mask P  #prob
+x = tf.placeholder(tf.float32, name='X',shape=[None, x_size])
+y = tf.placeholder(tf.float32, name='Y',shape=[None, x_size])
 
 
 #define variables scope!!! reuse = True stuff
@@ -16,44 +25,43 @@ P = tf.placeholder(tf.float32, name='P')
 #   v = tf.get_variable("v", [1])
 # Step 3: create weight and bias, initialized to 0
 #layer 1
-W1 = tf.get_variable('w1', [x_size, 100], initializer=tf.random_normal_initializer())
-b1 = tf.get_variable('b1', [1,], initializer=tf.random_normal_initializer())
+W1 = tf.get_variable('w1', [x_size, x_size], initializer=tf.random_normal_initializer())
+b1 = tf.get_variable('b1', [x_size], initializer=tf.random_normal_initializer())
 y1 = tf.nn.sigmoid(tf.matmul(x, W1) + b1)
 
 #layer 2
-W2 = tf.get_variable('w2',[x_size,10], initializer=
+W2 = tf.get_variable('w2',[x_size,x_size], initializer=
 tf.random_normal_initializer())
-b2 = tf.get_variable('b2',[1,], initializer=tf.random_normal_initializer())
-y2 = tf.nn.softmax(tf.matmul(y1, W2) + b2)
+b2 = tf.get_variable('b2',[x_size], initializer=tf.random_normal_initializer())
+y2 = tf.nn.sigmoid(tf.matmul(y1, W2) + b2)
 
 #layer 3
-W3 = tf.get_variable('w3',[x_size,10], initializer=
+W3 = tf.get_variable('w3',[x_size,x_size], initializer=
 tf.random_normal_initializer())
-b3 = tf.get_variable('b3',[1,], initializer=tf.random_normal_initializer())
-y3 = tf.nn.softmax(tf.matmul(y2, W3) + b3)
+b3 = tf.get_variable('b3',[x_size], initializer=tf.random_normal_initializer())
+net_y = tf.matmul(y2, W3) + b3
 
-#output
-y = y3
-y_ = tf.placeholder(tf.float32, [None, 10])
+probs = tf.nn.softmax_cross_entropy_with_logits(labels=y, logits=net_y)
+cross_entropy = tf.reduce_mean(probs)
 
-cross_entropy = tf.reduce_mean(-tf.reduce_sum(y_ * tf.log(y),
-reduction_indices=[1]))
 train_step = tf.train.GradientDescentOptimizer(lr).minimize(cross_entropy)
-sess = tf.InteractiveSession()
-tf.global_variables_initializer().run()
-
-for _ in range(10000):
- #get batch func
-  sess.run(train_step, feed_dict={x: batch_xs, y_: batch_ys})
 
 
-    # Step 9: output the values of w and b
-   # w, b = sess.run([w, b])
+#this is not multi class thus argmax is just wrong for accuracy.
+# correct_prediction = tf.equal(tf.argmax(y, 1), tf.argmax(net_y, 1)) #this is mulyiclass - wrong!
+# accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
 
-    # logits = tf.matmul(inputs, tf.transpose(weights))
-# logits = tf.nn.bias_add(logits, biases)
-# labels_one_hot = tf.one_hot(labels, n_classes)
-# loss = tf.nn.sigmoid_cross_entropy_with_logits(
-#     labels=labels_one_hot,
-#     logits=logits)
-# loss = tf.reduce_sum(loss, axis=1)
+loss_vec = np.zeros([1,n_iters])
+with tf.Session() as sess:
+  sess.run(tf.global_variables_initializer())
+  for i in range(n_iters):
+    batch = data_class.get_batch()
+    if len(batch)==0 :
+      break #reset DataClass
+    #train_step.run(feed_dict={x: batch[0], y: batch[1]})
+    _, loss_val = sess.run([train_step, cross_entropy,probs],
+                             feed_dict={x: batch[0], y: batch[1]})
+    loss_vec[i] = loss_val
+    if i % 100 == 0:
+      print('step %d, loss val %g' % (i, loss_val))
+

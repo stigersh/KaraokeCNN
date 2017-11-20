@@ -5,3 +5,7 @@ Python_code/.idea/
 deep_karaoke_code/training/training_file.mat
 .dropbox
 Python_code/train_data.pckl
+Python_code/MNIST_data/
+Python_code/my_csv.csv
+Python_code/MNIST-data/t10k-labels-idx1-ubyte.gz
+Python_code/MNIST-data/

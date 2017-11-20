@@ -80,7 +80,8 @@ def get_train_data_per_mix(options,ind,jsondata):
 
 
     f, t, Sother = signal.spectrogram(other, samplerate, 'hann', options.FFT_SIZE, overlap)
-    print(Sother.shape)
+    # if isinstance(Sother, complex):
+    #     print('fuck complex')
 
     f, t, Svocals = signal.spectrogram(vocals, samplerate, 'hann', options.FFT_SIZE, overlap)
 
@@ -112,11 +113,15 @@ def get_train_data_per_mix(options,ind,jsondata):
     def reshape_colsblk_to_row_of_cols(blk):
         return np.reshape(blk.transpose(), [1, blk.size])
 
-    mix_rowvecs = np.squeeze(np.array([reshape_colsblk_to_row_of_cols(blk) for blk in mix_blks]))
-    bin_mask_rowvecs = np.squeeze(np.array([reshape_colsblk_to_row_of_cols(blk) for blk in bin_mask_blks]))
+    mix_rowvecs = np.squeeze(np.array([reshape_colsblk_to_row_of_cols(blk) for blk in mix_blks],np.float32))
+    bin_mask_rowvecs = np.squeeze(np.array([reshape_colsblk_to_row_of_cols(blk) for blk in bin_mask_blks],np.float32))
 
-    df_mixes = pd.DataFrame(mix_rowvecs)
-    df_masks = pd.DataFrame(bin_mask_rowvecs)
+    # if isinstance(mix_rowvecs[0,0], complex):
+    #     print('fuck complex')
+
+    df_mixes = pd.DataFrame(mix_rowvecs, dtype= np.float32)
+    # print(df_mixes.dtypes)
+    df_masks = pd.DataFrame(bin_mask_rowvecs, dtype= np.float32)
     # voc_blks
     # other_blks
     return df_mixes, df_masks

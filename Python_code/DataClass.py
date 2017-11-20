@@ -17,7 +17,7 @@ class DataClass:
 
     def get_batch(self):
         try:
-            batch = [next(self.generator_train_in) , next(self.generator_train_out)]
+            batch = [next(self.generator_train_in).astype(np.float32) , next(self.generator_train_out).astype(np.float32)]
         except:
             batch = []
         return batch

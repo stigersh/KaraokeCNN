@@ -1,6 +1,6 @@
 import tensorflow as tf
 import numpy as np
-
+import pickle
 from Params import options as opt
 
 options = opt
@@ -8,17 +8,17 @@ options = opt
 # hello = tf.constant('Hello, TensorFlow!')
 # sess = tf.Session()
 # print(sess.run(hello))
-n_iters = 10000
+n_iters = 3
 
 
-x_size = options.L*options.N_BINS
+x_size = 4#options.L*options.N_BINS
 print(x_size)
 lr = 0.2
-batch_size = 100
+batch_size = 1
 
 from DataClass import DataClass
-train_mixes_filename = 'train_mixes.csv'
-train_masks_filename = 'train_masks.csv'
+train_mixes_filename = 'my_csv.csv'#''train_mixes.csv'
+train_masks_filename = 'my_csv_labels.csv'#'train_masks.csv'
 
 
 def build_net(x,y,x_size):
@@ -45,7 +45,7 @@ def build_net(x,y,x_size):
   b3 = tf.get_variable('b3',[x_size], initializer=tf.random_normal_initializer())
   net_y = tf.matmul(y2, W3) + b3
 
-  probs = tf.nn.softmax_cross_entropy_with_logits(labels=y, logits=net_y)
+  probs = tf.nn.sigmoid_cross_entropy_with_logits(labels=y, logits=net_y)
   cross_entropy = tf.reduce_mean(probs)
 
   train_step = tf.train.GradientDescentOptimizer(lr).minimize(cross_entropy)
@@ -61,13 +61,19 @@ loss_vec = np.zeros([n_iters,1])
 
 with tf.Session() as sess:
   sess.run(tf.global_variables_initializer())
-  for i in range(n_iters):
+  for i in range(0,n_iters):
     batch = data_class.get_batch()
     if len(batch)==0 :
+      print('batches are finished')
       break #reset DataClass
-    _, loss_val = sess.run([train_step, cross_entropy],
+    _, loss_val,probs_val = sess.run([train_step, cross_entropy,probs],
                              feed_dict={x: batch[0], y: batch[1]})
     loss_vec[i] = loss_val
     if i % 100 == 0:
       print('step %d, loss val %g' % (i, loss_val))
 
+
+    lossfilename = 'loss.pckl'
+    f = open(lossfilename, 'wb')
+    pickle.dump(loss_vec, f)
+    f.close()

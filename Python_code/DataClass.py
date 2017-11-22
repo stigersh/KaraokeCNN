@@ -19,5 +19,9 @@ class DataClass:
         try:
             batch = [next(self.generator_train_in).astype(np.float32) , next(self.generator_train_out).astype(np.float32)]
         except:
-            batch = []
+            print('new Epoc')
+            self.generator_train_in = chunck_generator(self.mixes_filename, self.batchsize)
+            self.generator_train_out = chunck_generator(self.masks_filename, self.batchsize)
+            batch = [next(self.generator_train_in).astype(np.float32),
+                     next(self.generator_train_out).astype(np.float32)]
         return batch

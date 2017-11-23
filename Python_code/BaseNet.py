@@ -5,15 +5,11 @@ from Params import options as opt
 
 options = opt
 
-# hello = tf.constant('Hello, TensorFlow!')
-# sess = tf.Session()
-# print(sess.run(hello))
-n_iters = 1000#3
-
+n_iters = options.n_iters#3
 x_size = options.L*options.N_BINS #4
 print(x_size)
-lr = 0.5
-batch_size = 100
+lr = options.lr
+batch_size = options.batch_size
 
 from DataClass import DataClass
 
@@ -29,12 +25,12 @@ def model(x, x_size):
     with tf.variable_scope("my_net", reuse=tf.AUTO_REUSE):
         W1 = tf.get_variable('w1', [x_size, x_size], initializer=tf.random_normal_initializer())
         b1 = tf.get_variable('b1', [x_size], initializer=tf.random_normal_initializer())
-        y1 = tf.nn.sigmoid(tf.matmul(x, W1) + b1)
-
+        # y1 = tf.nn.sigmoid(tf.matmul(x, W1) + b1)
+        y1 = tf.nn.relu(tf.matmul(x, W1) + b1,'y1')
         # layer 2
         W2 = tf.get_variable('w2', [x_size, x_size], initializer=tf.random_normal_initializer())
         b2 = tf.get_variable('b2', [x_size], initializer=tf.random_normal_initializer())
-        y2 = tf.nn.sigmoid(tf.matmul(y1, W2) + b2)
+        y2 = tf.nn.sigmoid(tf.matmul(y1, W2) + b2,'y2')
 
         # # layer 3
         # W3 = tf.get_variable('w3', [x_size, x_size], initializer=tf.random_normal_initializer())
@@ -78,6 +74,9 @@ data_class = DataClass(train_mixes_filename, train_masks_filename, batch_size)
 
 loss_vec = np.zeros([n_iters, 1])
 
+#saving the model
+saver = tf.train.Saver()
+
 with tf.Session() as sess:
     sess.run(tf.global_variables_initializer())
     for i in range(0, n_iters):
@@ -85,20 +84,26 @@ with tf.Session() as sess:
         batch = data_class.get_batch()
         if len(batch) == 0:
             print('batches are finished')
-            break  # reset DataClass
+            break
         _, loss_val, probs_val = sess.run([train_step, loss, net_y],
                                           feed_dict={x: batch[0], y: batch[1]})
         print(loss_val)
         loss_vec[i] = loss_val
         if i % 10 == 0:
             print('step %d, loss val %g' % (i, loss_val))
+            # save_path = saver.save(sess, "/save_model/model_iter_"+str(i)+".ckpt")
+            # print("Model saved in file: %s" % save_path)
 
-# eval on test - currently train
-batch = data_class.get_batch()
-probs_eval = eval_net(batch[0], sess)
-# _, loss_val, probs_val = sess.run([loss, net_y],
-#          feed_dict={x: test[0], y: test[1]})
+save_path = saver.save(sess, "/save_model/model_iter_"+str(i)+".ckpt")
+print("Model saved in file: %s" % save_path)
+
 lossfilename = 'loss.pckl'
 f = open(lossfilename, 'wb')
 pickle.dump(loss_vec, f)
 f.close()
+# eval on test - currently train
+
+
+# _, loss_val, probs_val = sess.run([loss, net_y],
+#          feed_dict={x: test[0], y: test[1]})
+

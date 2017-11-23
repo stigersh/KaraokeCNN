@@ -194,7 +194,7 @@ else: #inference
     with tf.Session() as sess:
       # Restore variables from disk.
       last_iter = 20 #change that
-      saver.restore(sess, "/save_model/model_iter_"+str(last_iter)+".ckpt")
+      saver.restore(sess, "/save_model/model_final.ckpt")
       STFTmix_tot, mix_stft_rowvecs,samplerate = process_data_per_mix(options, 0, jsondata, mode='Inference')
       probs_eval = eval_net(mix_stft_rowvecs, sess)
       nn_out_to_separated_sigs(STFTmix_tot, probs_eval, options.alpha , samplerate, options)

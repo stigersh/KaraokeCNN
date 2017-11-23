@@ -30,13 +30,12 @@ def model(x, x_size):
         # layer 2
         W2 = tf.get_variable('w2', [x_size, x_size], initializer=tf.random_normal_initializer())
         b2 = tf.get_variable('b2', [x_size], initializer=tf.random_normal_initializer())
-        y2 = tf.nn.sigmoid(tf.matmul(y1, W2) + b2,'y2')
+        y2 = tf.nn.relu(tf.matmul(y1, W2) + b2,'y2')
 
         # # layer 3
-        # W3 = tf.get_variable('w3', [x_size, x_size], initializer=tf.random_normal_initializer())
-        # b3 = tf.get_variable('b3', [x_size], initializer=tf.random_normal_initializer())
-        # net_y = tf.nn.sigmoid(tf.matmul(y2, W3) + b3)
-        net_y = y2
+        W3 = tf.get_variable('w3', [x_size, x_size], initializer=tf.random_normal_initializer())
+        b3 = tf.get_variable('b3', [x_size], initializer=tf.random_normal_initializer())
+        net_y = tf.nn.relu(tf.matmul(y2, W3) + b3)
 
     return net_y
 
@@ -89,12 +88,12 @@ with tf.Session() as sess:
                                           feed_dict={x: batch[0], y: batch[1]})
         print(loss_val)
         loss_vec[i] = loss_val
-        if i % 10 == 0:
+        if i % 100 == 0:
             print('step %d, loss val %g' % (i, loss_val))
-            # save_path = saver.save(sess, "/save_model/model_iter_"+str(i)+".ckpt")
-            # print("Model saved in file: %s" % save_path)
+            save_path = saver.save(sess, "/save_model/model_iter_"+str(i)+".ckpt")
+            print("Model saved in file: %s" % save_path)
 
-save_path = saver.save(sess, "/save_model/model_iter_"+str(i)+".ckpt")
+save_path = saver.save(sess, "/save_model/model_final.ckpt")
 print("Model saved in file: %s" % save_path)
 
 lossfilename = 'loss.pckl'

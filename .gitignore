@@ -148,3 +148,9 @@ venv.bak/
 
 # End of https://www.gitignore.io/api/matlab,python,dropbox,jupyternotebook
 
+Python_code/MNIST-data/
+deep_karaoke_code/training/training_file.mat
+*.pckl
+*.csv
+Python_code/.idea/misc.xml
+Python_code/.idea/

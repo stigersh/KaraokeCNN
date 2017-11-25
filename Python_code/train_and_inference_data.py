@@ -1,5 +1,7 @@
 __author__ = 'anna'
-__name__ == "__Train__" #__name__ == "__Inference__"
+# __name__ == "__Train__"
+__name__ == "__Inference__"
+
 # generate csv files of the training data
 # one file for the mix spectograms which is the net input
 # one file for the binary masks which are the net output binary labels
@@ -173,14 +175,12 @@ jsondata = json.load(open('sampleDB.json'))  # ('medleydb_deepkaraoke.json'))  #
 if __name__ == "__Train__":
     # run over all training songs and save to csv
     # read json, read mix from sample and plot
-    train_mixes_filename = 'train_mixes.csv'
-    train_masks_filename = 'train_masks.csv'
 
     for i in range(0, len(jsondata["mixes"])):
         df_mixes_i, df_masks_i = process_data_per_mix(options, i, jsondata, 'Train')
-        with open(train_mixes_filename, 'a') as f:
+        with open(options.train_mixes_filename, 'a') as f:
             df_mixes_i.to_csv(f, header=False, index=False)
-        with open(train_masks_filename, 'a') as f:
+        with open(options.train_masks_filename, 'a') as f:
             df_masks_i.to_csv(f, header=False, index=False)
 
 
@@ -188,12 +188,11 @@ if __name__ == "__Train__":
 # f = open(datafilename, 'wb')
 # pickle.dump(train_data, f)
 # f.close()
-else: #inference
+elif __name__ == "__Inference__":
 # --------------------------------------------------------------------------------------------------------------
     saver = tf.train.Saver()
     with tf.Session() as sess:
       # Restore variables from disk.
-      last_iter = 20 #change that
       saver.restore(sess, "/save_model/model_final.ckpt")
       STFTmix_tot, mix_stft_rowvecs,samplerate = process_data_per_mix(options, 0, jsondata, mode='Inference')
       probs_eval = eval_net(mix_stft_rowvecs, sess)

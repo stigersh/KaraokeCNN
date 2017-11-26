@@ -15,8 +15,8 @@ options.train_mixes_filename = 'train_mixes.csv' #'my_csv.csv'
 options.train_masks_filename = 'train_masks.csv' #'my_csv_labels.csv'
 
 #net options
-options.n_iters = 2#1000
+options.n_iters = 200#1000
 options.lr = 0.5
 options.reg = 1e-5
-options.batch_size = 1
+options.batch_size = 10
 options.model_dir = 'save_model'

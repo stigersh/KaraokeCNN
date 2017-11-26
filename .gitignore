@@ -154,3 +154,4 @@ deep_karaoke_code/training/training_file.mat
 *.csv
 Python_code/.idea/misc.xml
 Python_code/.idea/
+Python_code/save_model/

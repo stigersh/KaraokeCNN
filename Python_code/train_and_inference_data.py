@@ -1,6 +1,6 @@
 __author__ = 'anna'
 # __name__ == "__Train__"
-__name__ == "__Inference__"
+filemod = "__Inference__"
 
 # generate csv files of the training data
 # one file for the mix spectograms which is the net input
@@ -17,7 +17,7 @@ import soundfile as sf
 from scipy import signal
 import pandas as pd
 import tensorflow as tf
-from BaseNet import eval_net
+from BaseNet import model
 
 def normalize(x):
     return (x - np.min(x)) / (np.max(x) - np.min(x))
@@ -75,10 +75,17 @@ def process_data_per_mix(options, ind, jsondata, mode='Train'):
 
     overlap = options.FFT_SIZE - options.HOP_SIZE  # this is in the matlab code, in the paper the overlap is the hop size
 
+    f, t, Smix_tot = signal.spectrogram(mix_tot, samplerate, 'hann', options.FFT_SIZE, overlap)
+
+
+    #for debug GT: To be removed
+    f, t, Sother = signal.spectrogram(other, samplerate, 'hann', options.FFT_SIZE, overlap)
+    f, t, Svocals = signal.spectrogram(vocals, samplerate, 'hann', options.FFT_SIZE, overlap)
+
     if mode == 'Train':
         f, t, Sother = signal.spectrogram(other, samplerate, 'hann', options.FFT_SIZE, overlap)
         f, t, Svocals = signal.spectrogram(vocals, samplerate, 'hann', options.FFT_SIZE, overlap)
-        f, t, Smix_tot = signal.spectrogram(mix_tot, samplerate, 'hann', options.FFT_SIZE, overlap)
+
         # plt.pcolormesh(t, f, np.log(Smix_tot))
         # plt.title('vocals STFT Magnitude sqr')
         # plt.ylabel('Frequency [Hz]')
@@ -117,16 +124,28 @@ def process_data_per_mix(options, ind, jsondata, mode='Train'):
         bin_mask_rowvecs = np.squeeze(
             np.array([reshape_colsblk_to_row_of_cols(blk) for blk in bin_mask_blks], np.float32))
     else:  # inference
-        STFTmix_blks = sample_to_col_blocks(STFTmix_tot, options.inference_H, options.L)
-        mix_stft_rowvecs = np.squeeze(
-            np.array([reshape_colsblk_to_row_of_cols(blk) for blk in STFTmix_blks], np.float32))
+        #for debugging ground truth inference __________________________________
+        voc_blks = sample_to_col_blocks(Svocals, options.inference_H, options.L)
+        other_blks = sample_to_col_blocks(Sother, options.inference_H, options.L)
+        mix_blks = sample_to_col_blocks(Smix_tot, options.inference_H, options.L)
+        bin_mask_blks = [np.abs(voc_blks[i]) > np.abs(other_blks[i]) for i in
+                         range(0, len(mix_blks))]
+
+        mix_rowvecs = np.squeeze(np.array([reshape_colsblk_to_row_of_cols(blk) for blk in mix_blks], np.float32))
+        bin_mask_rowvecs = np.squeeze(
+            np.array([reshape_colsblk_to_row_of_cols(blk) for blk in bin_mask_blks], np.float32))
+        # END for debugging ground truth inference __________________________________
+
+        # STFTmix_blks = sample_to_col_blocks(STFTmix_tot, options.inference_H, options.L)
+        # mix_stft_rowvecs = np.squeeze(
+        #     np.array([reshape_colsblk_to_row_of_cols(blk) for blk in STFTmix_blks], np.float32))
 
     if mode == 'Train':
         df_mixes = pd.DataFrame(mix_rowvecs, dtype=np.float32)
         df_masks = pd.DataFrame(bin_mask_rowvecs, dtype=np.float32)
         return df_mixes, df_masks
     else:  # inference
-        return STFTmix_tot, mix_stft_rowvecs,samplerate
+        return STFTmix_tot, mix_rowvecs,samplerate,bin_mask_rowvecs
 
 
 # --------------------------------------------------------------------------------------------------------------
@@ -139,20 +158,22 @@ def reshape_row_of_cols_to_colsblk(row, col_size):
 
 # process network output into separated signals
 def voc_prob_to_col_mask(alpha, sigm_prob):
-    return (np.sum(sigm_prob, 1) / sigm_prob.shape(1) > alpha).astype(np.float32)
+    return (np.sum(sigm_prob, 1) / sigm_prob.shape[1] > alpha).astype(np.float32)
 
 
 def other_prob_to_col_mask(alpha, sigm_prob):
-    return (np.sum(sigm_prob, 1) / sigm_prob.shape(1) < 1 - alpha).astype(np.float32)
+    return (np.sum(sigm_prob, 1) / sigm_prob.shape[1] < 1 - alpha).astype(np.float32)
 
 
-def rows_masks_to_full_stft_mask(rows, col_size, prob2mask_func,H,n_stft_cols):#H is the hop
+def rows_masks_to_full_stft_mask(rows, col_size, prob2mask_func, alpha,H,n_stft_cols):#H is the hop
+    #prob2mask_func is a method taking a block and alpha and calculating the binary decision for each row
+
     masks_blks = [reshape_row_of_cols_to_colsblk(row, col_size) for row in rows]
-    bin_vecs = np.array([prob2mask_func(blk) for blk in masks_blks]).transpose()#columns of bin vectors (in float)
+    bin_vecs = np.array([prob2mask_func(alpha,blk) for blk in masks_blks]).transpose()#columns of bin vectors (in float)
     rep_bins = np.repeat(bin_vecs,H,1)
     n_last_cols = n_stft_cols -  bin_vecs.shape[1]*H
     if n_last_cols:
-       last_col =   np.reshape(bin_vecs[:,-1],[bin_vecs.shape[0],1])
+       last_col = np.reshape(bin_vecs[:,-1],[bin_vecs.shape[0],1])
        return np.concatenate((rep_bins, np.repeat(last_col,n_last_cols,1)), axis=1)
 
     return rep_bins
@@ -161,39 +182,53 @@ def rows_masks_to_full_stft_mask(rows, col_size, prob2mask_func,H,n_stft_cols):#
 def nn_out_to_separated_sigs(mix_stft, masks_rows, alpha, samplerate,options):#check correctness
     overlap = options.FFT_SIZE - options.HOP_SIZE
     # masks_list should be in the size of cols on stft  - this issue should be resolved.
-    voc_mask = rows_masks_to_full_stft_mask(masks_rows, options.L, voc_prob_to_col_mask,options.inference_H,mix_stft.shape[1])
+    voc_mask = rows_masks_to_full_stft_mask(masks_rows, options.N_BINS, voc_prob_to_col_mask,options.alpha, options.inference_H, mix_stft.shape[1])
     t, sep_voc = signal.istft(np.multiply(mix_stft, voc_mask), samplerate, 'hann', options.FFT_SIZE, overlap)
-    other_mask = rows_masks_to_full_stft_mask(masks_rows, options.L, other_prob_to_col_mask,options.inference_H,mix_stft.shape[1])
+    other_mask = rows_masks_to_full_stft_mask(masks_rows, options.N_BINS, other_prob_to_col_mask,options.alpha,options.inference_H,mix_stft.shape[1])
     t, sep_other = signal.istft(np.multiply(mix_stft, other_mask), samplerate, 'hann', options.FFT_SIZE, overlap)
 
     return sep_voc, sep_other
 
 
 # --------------------------------------------------------------------------------------------------------------
-options = opt
-jsondata = json.load(open('sampleDB.json'))  # ('medleydb_deepkaraoke.json'))  # dictionary
-if __name__ == "__Train__":
-    # run over all training songs and save to csv
-    # read json, read mix from sample and plot
 
-    for i in range(0, len(jsondata["mixes"])):
-        df_mixes_i, df_masks_i = process_data_per_mix(options, i, jsondata, 'Train')
-        with open(options.train_mixes_filename, 'a') as f:
-            df_mixes_i.to_csv(f, header=False, index=False)
-        with open(options.train_masks_filename, 'a') as f:
-            df_masks_i.to_csv(f, header=False, index=False)
+if __name__ == "__main__":
+    options = opt
+    jsondata = json.load(open('sampleDB.json'))  # ('medleydb_deepkaraoke.json'))  # dictionary
+    if filemod == "__Train__":
+        # run over all training songs and save to csv
+        # read json, read mix from sample and plot
+
+        for i in range(0, len(jsondata["mixes"])):
+            df_mixes_i, df_masks_i = process_data_per_mix(options, i, jsondata, 'Train')
+            with open(options.train_mixes_filename, 'a') as f:
+                df_mixes_i.to_csv(f, header=False, index=False)
+            with open(options.train_masks_filename, 'a') as f:
+                df_masks_i.to_csv(f, header=False, index=False)
 
 
-# datafilename = 'train_data_sample.pckl'
-# f = open(datafilename, 'wb')
-# pickle.dump(train_data, f)
-# f.close()
-elif __name__ == "__Inference__":
-# --------------------------------------------------------------------------------------------------------------
-    saver = tf.train.Saver()
-    with tf.Session() as sess:
-      # Restore variables from disk.
-      saver.restore(sess, "/save_model/model_final.ckpt")
-      STFTmix_tot, mix_stft_rowvecs,samplerate = process_data_per_mix(options, 0, jsondata, mode='Inference')
-      probs_eval = eval_net(mix_stft_rowvecs, sess)
-      nn_out_to_separated_sigs(STFTmix_tot, probs_eval, options.alpha , samplerate, options)
+    # datafilename = 'train_data_sample.pckl'
+    # f = open(datafilename, 'wb')
+    # pickle.dump(train_data, f)
+    # f.close()
+    elif filemod == "__Inference__":
+    # --------------------------------------------------------------------------------------------------------------
+        x_size = options.L * options.N_BINS
+        eval_x = tf.placeholder(tf.float32, name='eval_x', shape=[None, x_size])
+        eval_probs,_ = model(eval_x, x_size)
+        with tf.Session() as sess:
+          new_saver = tf.train.import_meta_graph('save_model/model_iter_180.ckpt.meta')
+          # Restore variables from disk.
+          new_saver.restore(sess, "save_model/model_iter_180.ckpt")
+          STFTmix_tot, mix_rowvecs, samplerate, bin_mask_rowvecs = process_data_per_mix(options, 0, jsondata, mode='Inference')
+          sep_vocGT, sep_otherGT = nn_out_to_separated_sigs(STFTmix_tot, bin_mask_rowvecs, options.alpha, samplerate, options)
+          # sf.write('save_model/restoredVocGT.wav', sep_vocGT, samplerate)
+          # sf.write('save_model/restoredOtherGT.wav', sep_otherGT, samplerate)
+
+          probs = sess.run(eval_probs, feed_dict={eval_x: mix_rowvecs})
+
+          sep_voc, sep_other = nn_out_to_separated_sigs(STFTmix_tot, probs, options.alpha , samplerate, options)
+          sf.write('save_model/restoredVocalg.wav', sep_voc, samplerate)
+          sf.write('save_model/restoredOtheralg.wav', sep_other, samplerate)
+
+

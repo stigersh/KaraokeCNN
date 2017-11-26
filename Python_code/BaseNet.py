@@ -3,13 +3,7 @@ import numpy as np
 import pickle
 from Params import options as opt
 import os
-options = opt
 
-n_iters = options.n_iters#3
-x_size = options.L*options.N_BINS #4
-print(x_size)
-lr = options.lr
-batch_size = options.batch_size
 
 from DataClass import DataClass
 
@@ -42,68 +36,70 @@ def model(x, x_size):
 
     return net_y,reg
 
-def eval_net(x, sess):
-    predictions = sess.run(
-        eval_probs, feed_dict={eval_x: x})
-    return predictions
-
 #----------------------------------
-# build net
-# create placeholders for input X (stft part) and mask y  #prob
-x = tf.placeholder(tf.float32, name='x', shape=[None, x_size])
-eval_x = tf.placeholder(tf.float32, name='eval_x', shape=[None, x_size])
-y = tf.placeholder(tf.float32, name='y', shape=[None, x_size])
-net_y,reg = model(x,x_size)
+if __name__ == "__main__":
+    options = opt
 
-#calculate loss
-# Training computation: logits + cross-entropy loss.
-# probs = tf.nn.sigmoid_cross_entropy_with_logits(labels=y, logits=net_y)
-# cross_entropy = tf.reduce_mean(probs)
-loss = tf.nn.l2_loss(y - net_y)
-objective = loss + options.reg*reg
-# Predictions for the test and validation, which we'll compute less often.
-eval_probs,_ = model(eval_x,x_size)
-# global_step = tf.Variable(0, trainable=False)
-# tf.train.exponential_decay(starter_learning_rate, global_step,
-# 100000, 0.96, staircase=True)
+    n_iters = options.n_iters#3
+    x_size = options.L*options.N_BINS #4
+    print(x_size)
+    lr = options.lr
+    batch_size = options.batch_size
 
-train_step = tf.train.GradientDescentOptimizer(lr).minimize(objective)
-#----------------------------------
-data_class = DataClass(options.train_mixes_filename, options.train_masks_filename, batch_size)
+    # build net
+    # create placeholders for input X (stft part) and mask y  #prob
+    x = tf.placeholder(tf.float32, name='x', shape=[None, x_size])
+    y = tf.placeholder(tf.float32, name='y', shape=[None, x_size])
+    net_y,reg = model(x,x_size)
 
-loss_vec = np.zeros([n_iters, 1])
+    #calculate loss
+    # Training computation: logits + cross-entropy loss.
+    # probs = tf.nn.sigmoid_cross_entropy_with_logits(labels=y, logits=net_y)
+    # cross_entropy = tf.reduce_mean(probs)
+    loss = tf.nn.l2_loss(y - net_y)
+    objective = loss + options.reg*reg
+    # global_step = tf.Variable(0, trainable=False)
+    # tf.train.exponential_decay(starter_learning_rate, global_step,
+    # 100000, 0.96, staircase=True)
 
-#saving the model
-saver = tf.train.Saver()
+    train_step = tf.train.GradientDescentOptimizer(lr).minimize(objective)
+    #----------------------------------
+    data_class = DataClass(options.train_mixes_filename, options.train_masks_filename, batch_size)
 
-if not os.path.exists(options.model_dir):
-    os.makedirs(options.model_dir)
+    loss_vec = np.zeros([n_iters, 1])
 
-with tf.Session() as sess:
-    sess.run(tf.global_variables_initializer())
-    for i in range(0, n_iters):
-        print(i)
-        batch = data_class.get_batch()
-        if len(batch) == 0:
-            print('batches are finished')
-            break
-        _, loss_val, probs_val = sess.run([train_step, loss, net_y],
-                                          feed_dict={x: batch[0], y: batch[1]})
-        print(loss_val)
-        loss_vec[i] = loss_val
-        # save_path = saver.save(sess, "/save_model/model_iter_" + str(i) + ".ckpt")
-        if i % 10 == 0:
-            print('step %d, loss val %g' % (i, loss_val))
-            save_path = saver.save(sess, "/save_model/model_iter_"+str(i)+".ckpt")
-            print("Model saved in file: %s" % save_path)
+    #saving the model
+    saver = tf.train.Saver()
 
-save_path = saver.save(sess, "/save_model/model_final.ckpt")
-print("Model saved in file: %s" % save_path)
+    if not os.path.exists(options.model_dir):
+        os.makedirs(options.model_dir)
 
-lossfilename = 'loss.pckl'
-f = open(lossfilename, 'wb')
-pickle.dump(loss_vec, f)
-f.close()
+    with tf.Session() as sess:
+        sess.run(tf.global_variables_initializer())
+        for i in range(0, n_iters):
+            print(i)
+            batch = data_class.get_batch()
+            if len(batch) == 0:
+                print('batches are finished')
+                break
+            _, loss_val, probs_val = sess.run([train_step, loss, net_y],
+                                              feed_dict={x: batch[0], y: batch[1]})
+            print(loss_val)
+            loss_vec[i] = loss_val
+            if i % 20 == 0:
+                print('step %d, loss val %g' % (i, loss_val))
+                save_path = saver.save(sess, "save_model/model_iter_"+str(i)+".ckpt")
+                print("Model saved in file: %s" % save_path)
+            if i== n_iters-1 :
+                save_path = saver.save(sess, "/save_model/model_final.ckpt")
+
+
+    print("Model saved in file: %s" % save_path)
+
+    lossfilename = 'loss.pckl'
+    f = open(lossfilename, 'wb')
+    pickle.dump(loss_vec, f)
+    f.close()
 
 
 # eval on test - currently train

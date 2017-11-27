@@ -57,17 +57,18 @@ def evaluate_over_n_first_batches(sess,loss,mixes_filename,masks_filename,x,y,ba
     counter = 0
     while counter < n :
         batch, bnewEpoc = data_class.get_batch()
+        # print(batch[0][:10])
         if bnewEpoc:
             break
         counter+=1
-        tot_loss += sess.run(loss,feed_dict={x: batch[0], y: batch[1]})
+        l = sess.run(loss,feed_dict={x: batch[0], y: batch[1]})
+        tot_loss +=l
     tot_loss /= (counter*batch_size)
     return tot_loss
 #----------------------------------
 if __name__ == "__main__":
     options = opt
 
-    n_iters = options.n_iters#3
     x_size = options.L*options.N_BINS #4
     print(x_size)
     lr = options.lr
@@ -109,20 +110,25 @@ if __name__ == "__main__":
         while n_epochs < options.n_epochs :
             print(i)
             batch,bnewEpoc = data_class.get_batch()
+            # print(batch[0][:10])
             if bnewEpoc:
                 n_epochs+=1
             _, loss_val, probs_val = sess.run([train_step, loss, net_y],
                                               feed_dict={x: batch[0], y: batch[1]})
+            loss_val2 = sess.run(loss,feed_dict={x: batch[0], y: batch[1]})
+            #BUG!!! why loss_val2!=loss_Val??????
             print(loss_val)
 
             if i % options.save_iters == 0:
                 loss_train = evaluate_over_n_first_batches(sess, loss, options.train_mixes_filename,
                                                            options.train_masks_filename, x, y, batch_size, i + 1)
                 loss_vec.append(loss_train)
+
                 loss_valid = evaluate_epoch_error(sess, loss, options.valid_mixes_filename,
                                                   options.valid_masks_filename, x, y, batch_size)
                 valid_vec.append(loss_valid)
-                print('step %d, loss val %g' % (i, loss_valid))
+                print('step %d, loss train %g' % (i, loss_train))
+                print('step %d, loss valid %g' % (i, loss_valid))
 
                 save_path = saver.save(sess, options.model_dir+"/model_iter_"+str(i)+".ckpt")
                 print("Model saved in file: %s" % save_path)

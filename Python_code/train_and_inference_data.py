@@ -1,6 +1,7 @@
 __author__ = 'anna'
-# __name__ == "__Train__"
-filemod = "__Inference__"
+
+# filemod = "__Inference__"
+filemod = "__Train__"
 
 # generate csv files of the training data
 # one file for the mix spectograms which is the net input

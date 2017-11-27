@@ -11,6 +11,7 @@ filemod = "__Inference__"
 # mode = 'Inference' (otherwise) - generates stft, and stft blocks for inference per song
 # inference - generate vocals and other
 import json
+import os
 # Hello numpy
 import numpy as np
 import soundfile as sf
@@ -18,6 +19,7 @@ from scipy import signal
 import pandas as pd
 import tensorflow as tf
 from BaseNet import model
+
 
 def normalize(x):
     return (x - np.min(x)) / (np.max(x) - np.min(x))
@@ -150,18 +152,20 @@ def process_data_per_mix(options, ind, jsondata, mode='Train'):
 
 # --------------------------------------------------------------------------------------------------------------
 # inference
+# process network output into separated signals
 
+#helper methods
 def reshape_row_of_cols_to_colsblk(row, col_size):
     assert (row.size % col_size == 0)
     return np.reshape(row, [row.size // col_size, col_size]).transpose()
 
-
-# process network output into separated signals
 def voc_prob_to_col_mask(alpha, sigm_prob):
+    sigm_prob[sigm_prob>1] =1 #truncate relu
     return (np.sum(sigm_prob, 1) / sigm_prob.shape[1] > alpha).astype(np.float32)
 
 
 def other_prob_to_col_mask(alpha, sigm_prob):
+    sigm_prob[sigm_prob > 1] = 1 #truncate relu
     return (np.sum(sigm_prob, 1) / sigm_prob.shape[1] < 1 - alpha).astype(np.float32)
 
 
@@ -178,7 +182,7 @@ def rows_masks_to_full_stft_mask(rows, col_size, prob2mask_func, alpha,H,n_stft_
 
     return rep_bins
 
-
+#final method performing the whole task
 def nn_out_to_separated_sigs(mix_stft, masks_rows, alpha, samplerate,options):#check correctness
     overlap = options.FFT_SIZE - options.HOP_SIZE
     # masks_list should be in the size of cols on stft  - this issue should be resolved.
@@ -193,42 +197,60 @@ def nn_out_to_separated_sigs(mix_stft, masks_rows, alpha, samplerate,options):#c
 # --------------------------------------------------------------------------------------------------------------
 
 if __name__ == "__main__":
-    options = opt
-    jsondata = json.load(open('sampleDB.json'))  # ('medleydb_deepkaraoke.json'))  # dictionary
-    if filemod == "__Train__":
-        # run over all training songs and save to csv
-        # read json, read mix from sample and plot
 
-        for i in range(0, len(jsondata["mixes"])):
+    def create_data_csv(jsondata,rng,mixes_filenames,masks_filenmaes):
+        f = open(mixes_filenames, "w+")
+        f.close()
+        f = open(masks_filenmaes, "w+")
+        f.close()
+        for i in rng:#range(0, len(jsondata["mixes"])):
             df_mixes_i, df_masks_i = process_data_per_mix(options, i, jsondata, 'Train')
-            with open(options.train_mixes_filename, 'a') as f:
+            with open(mixes_filenames, 'a') as f:
                 df_mixes_i.to_csv(f, header=False, index=False)
-            with open(options.train_masks_filename, 'a') as f:
+            with open(masks_filenmaes, 'a') as f:
                 df_masks_i.to_csv(f, header=False, index=False)
 
 
-    # datafilename = 'train_data_sample.pckl'
-    # f = open(datafilename, 'wb')
-    # pickle.dump(train_data, f)
-    # f.close()
+    options = opt
+    jsondata = json.load(open(options.json_name))
+    if filemod == "__Train__":
+        # run over all songs and save to csv train validation and test
+        # read json, read mix from sample and plot
+        tvtsplit = options.train_valid_test_songs_split
+
+        create_data_csv(jsondata, range(0,tvtsplit[0]), options.train_mixes_filename ,
+                        options.train_masks_filename )
+        create_data_csv(jsondata, range(tvtsplit[0],tvtsplit[0]+tvtsplit[1]),
+                        options.validation_mixes_filename, options.validation_masks_filename)
+        create_data_csv(jsondata, range(tvtsplit[0]+tvtsplit[1],len(jsondata["mixes"])),
+                        options.test_mixes_filename, options.test_masks_filename)
+
     elif filemod == "__Inference__":
     # --------------------------------------------------------------------------------------------------------------
         x_size = options.L * options.N_BINS
+        if not os.path.exists(options.inf_dir):
+            os.makedirs(options.inf_dir)
+
         eval_x = tf.placeholder(tf.float32, name='eval_x', shape=[None, x_size])
         eval_probs,_ = model(eval_x, x_size)
         with tf.Session() as sess:
-          new_saver = tf.train.import_meta_graph('save_model/model_iter_180.ckpt.meta')
+          new_saver = tf.train.import_meta_graph(options.model_dir+"/model_final.ckpt.meta")
+          sess.run(tf.global_variables_initializer())
           # Restore variables from disk.
-          new_saver.restore(sess, "save_model/model_iter_180.ckpt")
-          STFTmix_tot, mix_rowvecs, samplerate, bin_mask_rowvecs = process_data_per_mix(options, 0, jsondata, mode='Inference')
-          sep_vocGT, sep_otherGT = nn_out_to_separated_sigs(STFTmix_tot, bin_mask_rowvecs, options.alpha, samplerate, options)
-          # sf.write('save_model/restoredVocGT.wav', sep_vocGT, samplerate)
-          # sf.write('save_model/restoredOtherGT.wav', sep_otherGT, samplerate)
+          new_saver.restore(sess, options.model_dir+"/model_final.ckpt")
+          for i in range(0, len(jsondata["mixes"])):
+              mixname = os.path.basename(jsondata['base_path'] + jsondata["mixes"][i]["mix_path"])
+              STFTmix_tot, mix_rowvecs, samplerate, bin_mask_rowvecs = process_data_per_mix(options, i, jsondata, mode='Inference')
 
-          probs = sess.run(eval_probs, feed_dict={eval_x: mix_rowvecs})
-
-          sep_voc, sep_other = nn_out_to_separated_sigs(STFTmix_tot, probs, options.alpha , samplerate, options)
-          sf.write('save_model/restoredVocalg.wav', sep_voc, samplerate)
-          sf.write('save_model/restoredOtheralg.wav', sep_other, samplerate)
+              #inference from GT mask
+              sep_vocGT, sep_otherGT = nn_out_to_separated_sigs(STFTmix_tot, bin_mask_rowvecs, options.alpha, samplerate, options)
+              sf.write(options.inf_dir+'/'+mixname+'vocGT.wav', sep_vocGT, samplerate)
+              sf.write(options.inf_dir+'/'+mixname+'otherGT.wav', sep_otherGT, samplerate)
+              #get probs from network function
+              probs = sess.run(eval_probs, feed_dict={eval_x: mix_rowvecs})
+              #inference from net output
+              sep_voc, sep_other = nn_out_to_separated_sigs(STFTmix_tot, probs, options.alpha , samplerate, options)
+              sf.write(options.inf_dir+'/'+mixname+'vocAlg.wav', sep_voc, samplerate)
+              sf.write(options.inf_dir+'/'+mixname+'otherAlg.wav', sep_other, samplerate)
 
 

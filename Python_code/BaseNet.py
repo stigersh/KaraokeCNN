@@ -36,6 +36,33 @@ def model(x, x_size):
 
     return net_y,reg
 
+def evaluate_epoch_error(sess,mixes_filename,masks_filename,x,y,batch_size):
+    data_class = DataClass(mixes_filename, masks_filename, batch_size)
+    bnewEpoc = False
+    tot_loss = 0
+    counter = 0
+    while bnewEpoc==False :
+        batch, bnewEpoc = data_class.get_batch()
+        if bnewEpoc:
+            break
+        counter+=1
+        tot_loss += sess.run(loss,feed_dict={x: batch[0], y: batch[1]})
+    tot_loss /= (counter*options.batch_size)
+    return tot_loss
+
+def evaluate_over_n_first_batches(sess,mixes_filename,masks_filename,x,y,batch_size,n):
+    data_class = DataClass(mixes_filename, masks_filename, batch_size)
+    bnewEpoc = False
+    tot_loss = 0
+    counter = 0
+    while counter < n :
+        batch, bnewEpoc = data_class.get_batch()
+        if bnewEpoc:
+            break
+        counter+=1
+        tot_loss += sess.run(loss,feed_dict={x: batch[0], y: batch[1]})
+    tot_loss /= (counter*options.batch_size)
+    return tot_loss
 #----------------------------------
 if __name__ == "__main__":
     options = opt
@@ -66,39 +93,48 @@ if __name__ == "__main__":
     #----------------------------------
     data_class = DataClass(options.train_mixes_filename, options.train_masks_filename, batch_size)
 
-    loss_vec = np.zeros([n_iters, 1])
-
+    loss_vec = []
+    valid_vec = []
     #saving the model
     saver = tf.train.Saver()
 
     if not os.path.exists(options.model_dir):
         os.makedirs(options.model_dir)
 
+    n_epochs = 0
+    i = 0
+    loss_test = 0
     with tf.Session() as sess:
         sess.run(tf.global_variables_initializer())
-        for i in range(0, n_iters):
+        while n_epochs < options.n_epochs :
             print(i)
-            batch = data_class.get_batch()
-            if len(batch) == 0:
-                print('batches are finished')
-                break
+            batch,bnewEpoc = data_class.get_batch()
+            if bnewEpoc:
+                n_epochs+=1
             _, loss_val, probs_val = sess.run([train_step, loss, net_y],
                                               feed_dict={x: batch[0], y: batch[1]})
             print(loss_val)
-            loss_vec[i] = loss_val
-            if i % 20 == 0:
+            loss_train = evaluate_over_n_first_batches(sess, options.train_mixes_filename, options.train_masks_filename, x, y, batch_size, i+1)
+            loss_vec.append(loss_train)
+            loss_valid = evaluate_epoch_error(sess, options.valid_mixes_filename, options.valid_masks_filename, x, y, batch_size)
+            valid_vec.append(loss_valid)
+            if i % options.save_iters == 0:
                 print('step %d, loss val %g' % (i, loss_val))
-                save_path = saver.save(sess, "save_model/model_iter_"+str(i)+".ckpt")
+                save_path = saver.save(sess, options.model_dir+"/model_iter_"+str(i)+".ckpt")
                 print("Model saved in file: %s" % save_path)
-            if i== n_iters-1 :
-                save_path = saver.save(sess, "/save_model/model_final.ckpt")
+            i += 1
 
+        save_path = saver.save(sess, options.model_dir+"/model_final.ckpt")
+        print("Model saved in file: %s" % save_path)
+        loss_test = evaluate_epoch_error(sess, options.test_mixes_filename, options.test_masks_filename, x, y,
+                                         batch_size)
 
-    print("Model saved in file: %s" % save_path)
-
-    lossfilename = 'loss.pckl'
+    lossfilename = options.model_dir+'/paramsAndloss.pckl'
     f = open(lossfilename, 'wb')
     pickle.dump(loss_vec, f)
+    pickle.dump(valid_vec, f)
+    pickle.dump(options, f)
+    pickle.dump(loss_test, f)
     f.close()
 
 

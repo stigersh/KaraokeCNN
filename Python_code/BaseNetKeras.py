@@ -36,8 +36,6 @@ if __name__ == "__main__":
     batch_size = options.batch_size
 
     # build net
-    # create placeholders for input X (stft part) and mask y  #prob
-
     model = build_model(x_size,options.re)
 
     model.compile(loss='mean_squared_error', optimizer='sgd')

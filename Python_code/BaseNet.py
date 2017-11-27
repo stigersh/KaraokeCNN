@@ -36,7 +36,7 @@ def model(x, x_size):
 
     return net_y,reg
 
-def evaluate_epoch_error(sess,mixes_filename,masks_filename,x,y,batch_size):
+def evaluate_epoch_error(sess,loss,mixes_filename,masks_filename,x,y,batch_size):
     data_class = DataClass(mixes_filename, masks_filename, batch_size)
     bnewEpoc = False
     tot_loss = 0
@@ -47,10 +47,10 @@ def evaluate_epoch_error(sess,mixes_filename,masks_filename,x,y,batch_size):
             break
         counter+=1
         tot_loss += sess.run(loss,feed_dict={x: batch[0], y: batch[1]})
-    tot_loss /= (counter*options.batch_size)
+    tot_loss /= (counter*batch_size)
     return tot_loss
 
-def evaluate_over_n_first_batches(sess,mixes_filename,masks_filename,x,y,batch_size,n):
+def evaluate_over_n_first_batches(sess,loss,mixes_filename,masks_filename,x,y,batch_size,n):
     data_class = DataClass(mixes_filename, masks_filename, batch_size)
     bnewEpoc = False
     tot_loss = 0
@@ -61,7 +61,7 @@ def evaluate_over_n_first_batches(sess,mixes_filename,masks_filename,x,y,batch_s
             break
         counter+=1
         tot_loss += sess.run(loss,feed_dict={x: batch[0], y: batch[1]})
-    tot_loss /= (counter*options.batch_size)
+    tot_loss /= (counter*batch_size)
     return tot_loss
 #----------------------------------
 if __name__ == "__main__":
@@ -114,12 +114,16 @@ if __name__ == "__main__":
             _, loss_val, probs_val = sess.run([train_step, loss, net_y],
                                               feed_dict={x: batch[0], y: batch[1]})
             print(loss_val)
-            loss_train = evaluate_over_n_first_batches(sess, options.train_mixes_filename, options.train_masks_filename, x, y, batch_size, i+1)
-            loss_vec.append(loss_train)
-            loss_valid = evaluate_epoch_error(sess, options.valid_mixes_filename, options.valid_masks_filename, x, y, batch_size)
-            valid_vec.append(loss_valid)
+
             if i % options.save_iters == 0:
-                print('step %d, loss val %g' % (i, loss_val))
+                loss_train = evaluate_over_n_first_batches(sess, loss, options.train_mixes_filename,
+                                                           options.train_masks_filename, x, y, batch_size, i + 1)
+                loss_vec.append(loss_train)
+                loss_valid = evaluate_epoch_error(sess, loss, options.valid_mixes_filename,
+                                                  options.valid_masks_filename, x, y, batch_size)
+                valid_vec.append(loss_valid)
+                print('step %d, loss val %g' % (i, loss_valid))
+
                 save_path = saver.save(sess, options.model_dir+"/model_iter_"+str(i)+".ckpt")
                 print("Model saved in file: %s" % save_path)
             i += 1

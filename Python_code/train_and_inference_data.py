@@ -253,4 +253,17 @@ if __name__ == "__main__":
               sf.write(options.inf_dir+'/'+mixname+'vocAlg.wav', sep_voc, samplerate)
               sf.write(options.inf_dir+'/'+mixname+'otherAlg.wav', sep_other, samplerate)
 
-
+#     elif filemod == "__InferenceKERAS__":
+# # load json and create model
+# json_file = open(options.model_dir+'model.json', 'r')
+# loaded_model_json = json_file.read()
+# json_file.close()
+# loaded_model = model_from_json(loaded_model_json)
+# # load weights into new model
+# loaded_model.load_weights(options.model_dir+"/KERAS/weights_final.h5")
+# print("Loaded model from disk")
+#
+# # evaluate loaded model on test data
+# loaded_model.compile(loss='mean_squared_error', optimizer='sgd')
+#
+# probs = loaded_model.predict_on_batch(mix_rowvecs)

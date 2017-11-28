@@ -1,7 +1,7 @@
 __author__ = 'anna'
 
-# filemod = "__Inference__"
-filemod = "__Train__"
+filemod = "__InferenceKERAS__"
+# filemod = "__Train__"
 
 # generate csv files of the training data
 # one file for the mix spectograms which is the net input
@@ -20,7 +20,13 @@ from scipy import signal
 import pandas as pd
 import tensorflow as tf
 from BaseNet import model
-
+#Keras
+from keras.models import Sequential
+from keras.layers import Dense, Dropout, Activation
+from keras import regularizers
+from keras.utils import np_utils
+from keras.models import model_from_json
+# from BaseNetKeras import model
 
 def normalize(x):
     return (x - np.min(x)) / (np.max(x) - np.min(x))
@@ -229,8 +235,8 @@ if __name__ == "__main__":
     elif filemod == "__Inference__":
     # --------------------------------------------------------------------------------------------------------------
         x_size = options.L * options.N_BINS
-        if not os.path.exists(options.inf_dir):
-            os.makedirs(options.inf_dir)
+        if not os.path.exists(options.inference_dir):
+            os.makedirs(options.inference_dir)
 
         eval_x = tf.placeholder(tf.float32, name='eval_x', shape=[None, x_size])
         eval_probs,_ = model(eval_x, x_size)
@@ -241,30 +247,50 @@ if __name__ == "__main__":
           new_saver.restore(sess, options.model_dir+"/model_final.ckpt")
           for i in range(0, len(jsondata["mixes"])):
               mixname = os.path.basename(jsondata['base_path'] + jsondata["mixes"][i]["mix_path"])
+              mixname = mixname[:-4]
+              print(mixname)
               STFTmix_tot, mix_rowvecs, samplerate, bin_mask_rowvecs = process_data_per_mix(options, i, jsondata, mode='Inference')
 
               #inference from GT mask
               sep_vocGT, sep_otherGT = nn_out_to_separated_sigs(STFTmix_tot, bin_mask_rowvecs, options.alpha, samplerate, options)
-              sf.write(options.inf_dir+'/'+mixname+'vocGT.wav', sep_vocGT, samplerate)
-              sf.write(options.inf_dir+'/'+mixname+'otherGT.wav', sep_otherGT, samplerate)
+              sf.write(options.inference_dir+'/'+mixname+'vocGT.wav', sep_vocGT, samplerate)
+              sf.write(options.inference_dir+'/'+mixname+'otherGT.wav', sep_otherGT, samplerate)
               #get probs from network function
               probs = sess.run(eval_probs, feed_dict={eval_x: mix_rowvecs})
               #inference from net output
               sep_voc, sep_other = nn_out_to_separated_sigs(STFTmix_tot, probs, options.alpha , samplerate, options)
-              sf.write(options.inf_dir+'/'+mixname+'vocAlg.wav', sep_voc, samplerate)
-              sf.write(options.inf_dir+'/'+mixname+'otherAlg.wav', sep_other, samplerate)
+              sf.write(options.inference_dir+'/'+mixname+'vocAlg.wav', sep_voc, samplerate)
+              sf.write(options.inference_dir+'/'+mixname+'otherAlg.wav', sep_other, samplerate)
 
-#     elif filemod == "__InferenceKERAS__":
-# # load json and create model
-# json_file = open(options.model_dir+'model.json', 'r')
-# loaded_model_json = json_file.read()
-# json_file.close()
-# loaded_model = model_from_json(loaded_model_json)
-# # load weights into new model
-# loaded_model.load_weights(options.model_dir+"/KERAS/weights_final.h5")
-# print("Loaded model from disk")
-#
-# # evaluate loaded model on test data
-# loaded_model.compile(loss='mean_squared_error', optimizer='sgd')
-#
-# probs = loaded_model.predict_on_batch(mix_rowvecs)
+    elif filemod == "__InferenceKERAS__":
+        # load json and create model
+        json_file = open(options.model_dir+'/KERAS/model.json', 'r')
+        loaded_model_json = json_file.read()
+        json_file.close()
+        loaded_model = model_from_json(loaded_model_json)
+        # load weights into new model
+        loaded_model.load_weights(options.model_dir+"/KERAS/weights_final.h5")
+        print("Loaded model from disk")
+        loaded_model.compile(loss='mean_squared_error', optimizer='sgd')
+        for i in range(0, len(jsondata["mixes"])):
+            mixname = os.path.basename(jsondata['base_path'] + jsondata["mixes"][i]["mix_path"])
+            mixname = mixname[:-4]
+            print(mixname)
+            STFTmix_tot, mix_rowvecs, samplerate, bin_mask_rowvecs = process_data_per_mix(options, i, jsondata,
+                                                                                          mode='Inference')
+
+            # inference from GT mask
+            sep_vocGT, sep_otherGT = nn_out_to_separated_sigs(STFTmix_tot, bin_mask_rowvecs, options.alpha, samplerate,
+                                                              options)
+
+            sf.write(options.inference_dir + '/' + mixname + 'vocGT.wav', sep_vocGT, samplerate)
+            sf.write(options.inference_dir + '/' + mixname + 'otherGT.wav', sep_otherGT, samplerate)
+            # get probs from network function
+            probs = loaded_model.predict_on_batch(mix_rowvecs)
+            # inference from net output
+            sep_voc, sep_other = nn_out_to_separated_sigs(STFTmix_tot, probs, options.alpha, samplerate, options)
+            sf.write(options.inference_dir + '/' + mixname + 'vocAlg.wav', sep_voc, samplerate)
+            sf.write(options.inference_dir + '/' + mixname + 'otherAlg.wav', sep_other, samplerate)
+        # evaluate loaded model on test data
+
+

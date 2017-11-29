@@ -253,16 +253,19 @@ if __name__ == "__main__":
 
               #inference from GT mask
               sep_vocGT, sep_otherGT = nn_out_to_separated_sigs(STFTmix_tot, bin_mask_rowvecs, options.alpha, samplerate, options)
-              sf.write(options.inference_dir+'/'+mixname+'vocGT.wav', sep_vocGT, samplerate)
-              sf.write(options.inference_dir+'/'+mixname+'otherGT.wav', sep_otherGT, samplerate)
+              fname = options.inference_dir + '/song_' + str(i) + '_' + mixname + 'vocGT.wav'
+              sf.write(fname+'vocGT.wav', sep_vocGT, samplerate)
+              sf.write(fname+'otherGT.wav', sep_otherGT, samplerate)
               #get probs from network function
               probs = sess.run(eval_probs, feed_dict={eval_x: mix_rowvecs})
               #inference from net output
               sep_voc, sep_other = nn_out_to_separated_sigs(STFTmix_tot, probs, options.alpha , samplerate, options)
-              sf.write(options.inference_dir+'/'+mixname+'vocAlg.wav', sep_voc, samplerate)
-              sf.write(options.inference_dir+'/'+mixname+'otherAlg.wav', sep_other, samplerate)
+              sf.write(fname+'vocAlg.wav', sep_voc, samplerate)
+              sf.write(fname+'otherAlg.wav', sep_other, samplerate)
 
     elif filemod == "__InferenceKERAS__":
+        if not os.path.exists(options.inference_dir):
+            os.makedirs(options.inference_dir)
         # load json and create model
         json_file = open(options.model_dir+'/KERAS/model.json', 'r')
         loaded_model_json = json_file.read()
@@ -282,15 +285,15 @@ if __name__ == "__main__":
             # inference from GT mask
             sep_vocGT, sep_otherGT = nn_out_to_separated_sigs(STFTmix_tot, bin_mask_rowvecs, options.alpha, samplerate,
                                                               options)
-
-            sf.write(options.inference_dir + '/' + mixname + 'vocGT.wav', sep_vocGT, samplerate)
-            sf.write(options.inference_dir + '/' + mixname + 'otherGT.wav', sep_otherGT, samplerate)
+            fname = options.inference_dir + '/song_' + str(i) + '_' + mixname
+            sf.write(fname + 'vocGT.wav', sep_vocGT, samplerate)
+            sf.write(fname +'otherGT.wav', sep_otherGT, samplerate)
             # get probs from network function
             probs = loaded_model.predict_on_batch(mix_rowvecs)
             # inference from net output
             sep_voc, sep_other = nn_out_to_separated_sigs(STFTmix_tot, probs, options.alpha, samplerate, options)
-            sf.write(options.inference_dir + '/' + mixname + 'vocAlg.wav', sep_voc, samplerate)
-            sf.write(options.inference_dir + '/' + mixname + 'otherAlg.wav', sep_other, samplerate)
+            sf.write(fname + 'vocAlg.wav', sep_voc, samplerate)
+            sf.write(fname + 'otherAlg.wav', sep_other, samplerate)
         # evaluate loaded model on test data
 
 
